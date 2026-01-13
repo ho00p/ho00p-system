@@ -1,0 +1,492 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { ShoppingBag, UtensilsCrossed, Cake, ChevronRight, Check, Copy, ArrowLeft, Heart, Bone, Palette, Leaf, Info, Wand2, Loader2, Circle, AlertCircle, Save, Trash2, Plus, Sparkles, Truck, Database, FileText, ShieldCheck } from 'lucide-react';
+
+// --- CSS Styles ---
+const styles = `
+  @keyframes float {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(0px, 0px) scale(1); }
+  }
+  .blob-animation {
+    animation: float 7s infinite;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Modal Animation */
+  @keyframes modal-pop {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .animate-modal {
+    animation: modal-pop 0.3s ease-out forwards;
+  }
+`;
+
+// --- Static Data ---
+const CATEGORIES_DATA = {
+  shape: { title: "輕食選擇", icon: <UtensilsCrossed className="w-5 h-5" />, items: [{ id: 'donut', name: '甜甜圈 (2個/份)', price: 240, desc: '可愛圓潤造型，一份包含 2 個甜甜圈。' }, { id: 'paw', name: '爪狀肉餅 (3個/份)', price: 300, desc: '萌萌肉球造型，一份包含 3 個肉餅。' }] },
+  meat: { title: "肉類主食", icon: <Bone className="w-5 h-5" />, items: [{ id: 'A', name: '牛肉', price: 300, desc: '高鐵、高鋅、B群豐富，增強免疫力與肌肉發展。' }, { id: 'B', name: '雞肉', price: 200, desc: '高蛋白、低脂。' }, { id: 'C', name: '鯛魚', price: 250, desc: '高蛋白、低脂肪，適合減肥與腎病管理。' }, { id: 'D', name: '鮭魚', price: 300, desc: '含Omega-3脂肪酸、EPA、DHA，保護心血管與皮膚。' }, { id: 'E', name: '蝦子', price: 250, desc: '優質蛋白質、Omega-3、牛磺酸。皮膚健康、毛髮亮麗。' }, { id: 'F', name: '', price: 200, desc: '鐵與鋅含量高，幫助消化與補氣血，適口性佳。' }] },
+  veg: { title: "蔬菜配料", icon: <Leaf className="w-5 h-5" />, items: [{ id: 'a', name: '菠菜', price: 100, desc: '鐵質與葉酸豐富。' }, { id: 'b', name: '花椰菜', price: 100, desc: '幫助抗氧化、清肝排毒、促進免疫系統。' }, { id: 'c', name: '貓薄荷', price: 50, desc: '幫助情緒放鬆解壓，安撫(狗狗也可以吃喔!)。' }, { id: 'd', name: '南瓜', price: 100, desc: '高纖維，有助腸胃蠕動與軟便。' }, { id: 'e', name: '地瓜', price: 100, desc: '幫助腸胃蠕動，含抗氧化物，增加飽足感。' }, { id: 'f', name: '紫薯', price: 100, desc: '幫助腸胃蠕動，促進排便改善毛球、便秘。' }, { id: 'g', name: '紅蘿蔔', price: 100, desc: 'β-胡蘿蔔素，幫助增強免疫、保護眼睛、促進皮膚健康。' }, { id: 'h', name: '白蘿蔔', price: 100, desc: '幫助消化、去脹氣。' }, { id: 'i', name: '小黃瓜', price: 100, desc: '含水量高，有助解暑與補水。' }, { id: 'j', name: '山藥', price: 150, desc: '幫助腸胃、抗發炎，膳食纖維豐富。' }] },
+  fruit: { title: "水果點綴", icon: <Heart className="w-5 h-5" />, items: [{ id: '1', name: '蘋果', price: 100, desc: '維生素C、膳食纖維，有助消化、整腸、降低口臭。' }, { id: '2', name: '香蕉', price: 100, desc: '鉀豐富，幫助心臟與神經功能，便秘可食用。' }, { id: '3', name: '藍莓', price: 200, desc: '幫助抗氧化、保護視力、減緩老化。' }, { id: '4', name: '木瓜', price: 150, desc: '木瓜酵素可幫助消化，富含維生素C、A。' }, { id: '5', name: '小番茄', price: 100, desc: '富含維生素C、A、纖維，有助消化與抗氧化。' }] },
+  color: { title: "淋面顏色", icon: <Palette className="w-5 h-5" />, items: [{ id: '@', name: '藍色', price: 100, desc: '蝶豆花粉', colorCode: '#A0C4FF' }, { id: '#', name: '綠色', price: 100, desc: '菠菜粉', colorCode: '#BDB2FF' }, { id: '+', name: '紅色', price: 100, desc: '紅甜菜根粉', colorCode: '#FFADAD' }, { id: '-', name: '黃色', price: 100, desc: '薑黃粉', colorCode: '#FDFFB6' }, { id: '%', name: '紫色', price: 100, desc: '紫薯泥', colorCode: '#E7C6FF' }] }
+};
+
+// --- Sub-components ---
+const PageContainer = ({ children }) => (
+  <div className="fixed inset-0 bg-[#fdfbf7] font-sans text-[#5d4037] overflow-hidden flex justify-center">
+    <style>{styles}</style>
+    <div className="w-full max-w-[1024px] relative bg-[#fdfbf7] h-full flex flex-col shadow-2xl">
+      {children}
+    </div>
+  </div>
+);
+
+const CategoryTab = ({ id, label, icon, isActive, onClick }) => (
+  <button onClick={() => onClick(id)} className={`flex items-center space-x-2 px-4 py-3 rounded-full transition-all duration-300 whitespace-nowrap border ${isActive ? 'bg-[#8b5e3c] text-white border-[#8b5e3c] shadow-md transform scale-105' : 'bg-white text-[#8b5e3c] border-[#e6ccb2] hover:bg-[#f0e6dd]'}`}>
+    {icon}<span className="font-medium tracking-wide">{label}</span>
+  </button>
+);
+
+const IngredientCard = ({ item, category, isSelected, onToggle, formatPrice }) => {
+  return (
+    <div onClick={() => onToggle(category, item)} className={`relative overflow-hidden rounded-2xl p-4 cursor-pointer transition-all duration-300 border-2 flex flex-col h-full bg-white ${isSelected ? 'border-[#8b5e3c] bg-[#fffbf7] shadow-md scale-[1.02]' : 'border-transparent hover:border-[#e6ccb2] shadow-sm'}`}>
+      <div className="flex justify-between items-start mb-2"><h3 className="text-lg font-bold text-[#5d4037]">{item.name}</h3>{item.price > 0 && (<span className="bg-[#d4a373] text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">{formatPrice(item.price)}</span>)}</div>
+      <p className="text-xs text-[#8b5e3c] opacity-80 leading-relaxed mb-6 flex-grow">{item.desc}</p>
+      {category === 'color' && (<div className="absolute top-2 right-12 w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: item.colorCode || '#ddd' }} />)}
+      <div className={`absolute bottom-3 right-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-[#8b5e3c]' : 'bg-[#e6ccb2]'}`}>{isSelected && <Check className="w-4 h-4 text-white" />}</div>
+    </div>
+  );
+};
+
+// --- Notification Modal Component ---
+const NotificationModal = ({ message, onConfirm, buttonText = "OK", icon }) => (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
+        <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full border-4 border-[#faedcd] animate-modal flex flex-col items-center text-center">
+            <div className="bg-[#faedcd] p-3 rounded-full mb-4">
+                {icon || <Truck className="w-8 h-8 text-[#8b5e3c]" />}
+            </div>
+            <p className="text-lg font-bold text-[#5d4037] mb-6 leading-relaxed">
+                {message}
+            </p>
+            <button 
+                onClick={onConfirm}
+                className="w-full bg-[#8b5e3c] text-white py-3 rounded-xl font-bold text-lg shadow-md active:scale-95 hover:bg-[#7a5235] transition-all"
+            >
+                {buttonText}
+            </button>
+        </div>
+    </div>
+);
+
+// --- Main App ---
+const Ho00pApp = () => {
+  // ⚠️ 請在此填入您的 Google Apps Script 網址
+  const googleScriptUrl = "https://script.google.com/macros/s/AKfycbyRecYYd6Dp01MZyZqsJ1wczJIMpcJc8LTz90p7Y8fNjOA38zXEdJuOGbz2KybfBe1KeA/exec"; 
+
+  // State
+  const [page, setPage] = useState('home'); 
+  const [orderType, setOrderType] = useState(null); 
+  const [cart, setCart] = useState([]);
+  const [selections, setSelections] = useState({ shape: [], meat: [], veg: [], fruit: [], color: [] });
+  const [activeTab, setActiveTab] = useState('meat');
+  const [isCartBarVisible, setIsCartBarVisible] = useState(true);
+  const scrollRef = useRef(null);
+  const lastScrollTop = useRef(0);
+  const [toast, setToast] = useState(null); 
+  
+  // Notification State
+  const [showNotice1, setShowNotice1] = useState(true); 
+  const [showNotice2, setShowNotice2] = useState(false);
+  const [showNotice3, setShowNotice3] = useState(false);
+  
+  // Greeting State
+  const [petName, setPetName] = useState('');
+  const [occasion, setOccasion] = useState(''); 
+  const [aiGreeting, setAiGreeting] = useState('');
+
+  // Admin State (店主記帳用) - 移除飼主姓名，保留其他
+  const [adminInput, setAdminInput] = useState('');
+  const [parsedData, setParsedData] = useState(null);
+  const [adminPhone, setAdminPhone] = useState('');
+  const [adminAddress, setAdminAddress] = useState('');
+  const [adminLast5, setAdminLast5] = useState('');
+  const [adminNote, setAdminNote] = useState('');
+  const [clickCount, setClickCount] = useState(0);
+
+  // Helper
+  const formatPrice = (price) => `$${price}`;
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleConfirmNotice1 = () => { setShowNotice1(false); setShowNotice2(true); };
+  const handleConfirmNotice2 = () => { setShowNotice2(false); setShowNotice3(true); };
+  const handleConfirmNotice3 = () => { setShowNotice3(false); };
+
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const currentScroll = container.scrollTop;
+    if (Math.abs(currentScroll - lastScrollTop.current) < 15) return;
+    if (currentScroll > lastScrollTop.current && currentScroll > 50) setIsCartBarVisible(false);
+    else setIsCartBarVisible(true);
+    lastScrollTop.current = currentScroll;
+  };
+  useEffect(() => { setIsCartBarVisible(true); }, [activeTab]);
+
+  const handleLogoClick = () => {
+    setClickCount(prev => prev + 1);
+    if (clickCount + 1 >= 5) {
+      setPage('admin');
+      setClickCount(0);
+      showToast("進入店主記帳模式 📝", "success");
+    }
+  };
+
+  // 📝 智慧訂單解析器 (修復版)
+  const parseOrderText = () => {
+    if (!adminInput) return;
+    const text = adminInput;
+    
+    // 1. 抓取寵物名與備註 (生日)
+    // 修改Regex：忽略 Emoji 和特殊符號，抓取 "的" 之後到 "訂購單" 之前的內容
+    const titleMatch = text.match(/【\s*(.*?)\s*的\s*(.*?)\s*訂購單/);
+    
+    let name = "未抓取到";
+    let note = "";
+    
+    if (titleMatch) {
+        name = titleMatch[1].trim();
+        note = titleMatch[2].trim(); // 這裡會抓到 "五歲生日"
+    } else {
+        const simpleMatch = text.match(/【\s*(.*?)\s*的/);
+        if (simpleMatch) name = simpleMatch[1].trim();
+    }
+
+    // 2. 抓取金額
+    const priceMatch = text.match(/訂單總金額：\s*\$([\d,]+)/);
+    const price = priceMatch ? priceMatch[1].replace(/,/g, '') : "0";
+
+    // 3. 抓取電話
+    const phoneMatch = text.match(/家長電話：\s*\n\s*([0-9-]+)/);
+    const phone = phoneMatch ? phoneMatch[1].trim() : "";
+
+    // 4. 抓取後五碼
+    const last5Match = text.match(/帳號後五碼：\s*\n\s*(\d+)/);
+    const last5 = last5Match ? last5Match[1].trim() : "";
+
+    // 5. 抓取地址
+    const addressMatch = text.match(/收件地址：\s*\n\s*(.+)/);
+    const address = addressMatch ? addressMatch[1].trim() : "";
+
+    // 6. 抓取訂單內容
+    let content = "詳細內容請見原始文字";
+    const startContent = text.indexOf("】");
+    const endContent = text.indexOf("------------------");
+    
+    if (startContent > 0 && endContent > startContent) {
+        content = text.substring(startContent + 1, endContent).trim();
+    }
+    
+    // 類型判斷
+    let type = "混合訂單";
+    if (content.includes("輕食餐點") && !content.includes("客製化蛋糕")) type = "輕食";
+    if (!content.includes("輕食餐點") && content.includes("客製化蛋糕")) type = "蛋糕";
+
+    setParsedData({
+        petName: name,
+        price: price,
+        type: type,
+        content: content 
+    });
+    
+    // 自動填入
+    setAdminPhone(phone);
+    setAdminLast5(last5);
+    setAdminAddress(address);
+    setAdminNote(note); // 這裡會自動帶入 "五歲生日"
+    
+    showToast("✅ 訂單智慧解析完成！", "success");
+  };
+
+  const handleSubmitToGoogle = async () => {
+    if (!googleScriptUrl) return showToast("尚未設定 Google Script 網址", "error");
+    if (!parsedData) return;
+    try {
+        const payload = {
+            petName: parsedData.petName,
+            content: parsedData.content,
+            ownerName: "", // 移除飼主姓名
+            phone: adminPhone,
+            address: adminAddress,
+            price: parsedData.price,
+            note: adminNote,
+            last5: adminLast5
+        };
+        await fetch(googleScriptUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        showToast("✅ 記帳成功！", "success");
+        setAdminInput(''); setParsedData(null); 
+        setAdminPhone(''); setAdminAddress(''); setAdminLast5(''); setAdminNote('');
+    } catch (e) { showToast("❌ 連線失敗", "error"); }
+  };
+
+  const startOrder = (type) => { setOrderType(type); setPage('builder'); setSelections({ shape: [], meat: [], veg: [], fruit: [], color: [] }); setIsCartBarVisible(true); if (type === 'meal') setActiveTab('shape'); else setActiveTab('meat'); };
+  const toggleSelection = (category, item) => { const list = selections[category] || []; const exists = list.find(i => i.id === item.id); const limits = { meat: 3, veg: 3, fruit: 1, color: 1, shape: 99 }; const limit = limits[category]; if (exists) { setSelections(prev => ({ ...prev, [category]: prev[category].filter(i => i.id !== item.id) })); } else { if (limit === 1) { setSelections(prev => ({ ...prev, [category]: [item] })); } else if (list.length >= limit) { showToast(`此類別最多只能選擇 ${limit} 種喔！`, 'error'); } else { setSelections(prev => ({ ...prev, [category]: [...prev[category], item] })); } } };
+  const calculateCurrentItemTotal = () => { let total = 0; Object.keys(selections).forEach(key => { selections[key].forEach(item => total += item.price); }); return total; };
+  const handleAddToCart = () => { const currentTotal = calculateCurrentItemTotal(); if (currentTotal === 0) return showToast('請先選擇餐點內容喔！', 'error'); if (orderType === 'meal' && selections.shape.length === 0) return showToast('輕食請先選擇至少一種餐點喔！', 'error'); if (orderType === 'cake') { if (selections.meat.length === 0) return showToast('您的蛋糕訂單還沒選「肉類主食」喔！', 'error'); if (selections.color.length === 0) return showToast('您的蛋糕訂單還沒選「淋面顏色」喔！', 'error'); } const newItem = { id: Date.now(), type: orderType, selections: { ...selections }, total: currentTotal }; setCart(prev => [...prev, newItem]); setPage('summary'); showToast('已加入購物車！', 'success'); };
+  const calculateCartSubtotal = () => cart.reduce((acc, item) => acc + item.total, 0); 
+  const calculateCartTotal = () => {
+      const subtotal = calculateCartSubtotal();
+      const shipping = subtotal >= 1000 ? 0 : 180;
+      return subtotal + shipping;
+  };
+  const removeFromCart = (itemId) => setCart(prev => prev.filter(item => item.id !== itemId));
+  const getCartIngredientsArray = () => { let list = []; cart.forEach(cartItem => { Object.values(cartItem.selections).forEach(arr => { arr.forEach(i => list.push(i.name)); }); }); return [...new Set(list)]; };
+
+  const generateOrderText = () => {
+    const name = petName.trim();
+    const occ = occasion.trim();
+    let text = '【 Ho00p 訂購單 】\n\n';
+    if (name) {
+        if (occ.includes("生日")) {
+             const ageMatch = occ.match(/(\d+|[一二三四五六七八九十]+)/);
+             const ageStr = ageMatch ? ageMatch[0] : "";
+             text = `【 ${name}的 ${ageStr}歲生日訂購單 🎂 】\n\n`;
+        } else {
+             text = `【 ${name}的 訂購單 】\n\n`;
+        }
+    }
+    
+    cart.forEach((item, index) => {
+        const title = item.type === 'cake' ? `🎂 客製化蛋糕 #${index + 1}` : `🥯 輕食餐點 #${index + 1}`;
+        text += `${title}\n`;
+        if (item.selections.shape.length > 0) text += `  品項：${item.selections.shape.map(i => i.name).join(', ')}\n`;
+        if (item.selections.meat.length > 0) text += `  肉類：${item.selections.meat.map(i => i.name).join(', ')}\n`;
+        if (item.selections.veg.length > 0) text += `  蔬菜：${item.selections.veg.map(i => i.name).join(', ')}\n`;
+        if (item.selections.fruit.length > 0) text += `  水果：${item.selections.fruit.map(i => i.name).join(', ')}\n`;
+        if (item.selections.color.length > 0) text += `  淋面：${item.selections.color.map(i => i.name).join(', ')}\n`;
+        text += `  單項金額：${formatPrice(item.total)}\n\n`;
+    });
+    
+    const subtotal = calculateCartSubtotal();
+    const shipping = subtotal >= 1000 ? 0 : 180;
+    const finalTotal = subtotal + shipping;
+
+    text += '------------------\n';
+    text += `商品總額：${formatPrice(subtotal)}\n`;
+    text += `運費：${shipping === 0 ? '$0 (滿千免運)' : '$180 (未滿$1000)'}\n`;
+    text += `💰 訂單總金額：${formatPrice(finalTotal)}\n\n`;
+    
+    text += `想請問詳細製作時間與取貨方式！`;
+    return text;
+  };
+
+  const handleCopy = () => {
+    if (cart.length === 0) return showToast('購物車是空的喔！', 'error');
+    const text = generateOrderText();
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed"; textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus(); textArea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (success) {
+        showToast('訂單已複製！即將跳轉至 LINE...', 'success');
+        setTimeout(() => { window.location.href = 'https://line.me/R/ti/p/@910bufim'; }, 1500);
+      } else { showToast('複製失敗，請手動複製', 'error'); }
+    } catch (e) { showToast('複製失敗，請手動複製', 'error'); }
+  };
+
+  const generateLocalGreeting = (name, occasion, ingredients) => {
+    const occasionStr = occasion.trim();
+    const nameStr = name.trim();
+    let line1 = `親愛的 ${nameStr} ～`;
+    if (occasionStr.includes("生日")) {
+        const ageMatch = occasionStr.match(/(\d+|[一二三四五六七八九十]+)/);
+        line1 = ageMatch ? `親愛的 ${nameStr} ${ageMatch[0]}歲生日快樂 🎂` : `親愛的 ${nameStr} 生日快樂 🎂`;
+    }
+    let line2 = "今天的餐點超豐盛！要頭好壯壯喔！"; 
+    const ingr = ingredients.map(i => i.toLowerCase());
+    if (ingr.includes('鮭魚') || ingr.includes('蝦子')) line2 = "皮膚要亮亮的，眼睛要顧好喔！👀";
+    else if (ingr.includes('南瓜') || ingr.includes('地瓜')) line2 = "這些膳食纖維要好好保護你的小肚子！";
+    else if (ingr.includes('牛肉') || ingr.includes('雞肉')) line2 = "蛋白質滿分！吃光光才能長得壯壯的！💪";
+    const line3 = "要健健康康的喔❤️";
+    return `${line1}\n${line2}\n${line3}`;
+  };
+
+  const handleSavePetData = () => {
+    if (!petName) return showToast("請輸入名字", "error");
+    const ingredients = getCartIngredientsArray();
+    const generatedGreeting = generateLocalGreeting(petName, occasion, ingredients);
+    setAiGreeting(generatedGreeting);
+    showToast("資料已儲存！");
+  };
+
+  // --- Render ---
+
+  // 0. Notifications Overlay
+  const renderNotifications = () => {
+      if (showNotice1) {
+          return <NotificationModal message="全品項採當日新鮮食材，無額外添加物，安全請放心。 ❤️" onConfirm={handleConfirmNotice1} icon={<ShieldCheck className="w-8 h-8 text-[#8b5e3c]" />} />;
+      }
+      if (showNotice2) {
+          return <NotificationModal message="運送只限台灣本島，離島無法寄送請見諒 🚚" onConfirm={handleConfirmNotice2} icon={<Truck className="w-8 h-8 text-[#8b5e3c]" />} />;
+      }
+      if (showNotice3) {
+          return <NotificationModal message="黑貓低溫宅急便滿千含運，未達 $1000 酌收 $180 運費 💰" onConfirm={handleConfirmNotice3} icon={<ShoppingBag className="w-8 h-8 text-[#8b5e3c]" />} />;
+      }
+      return null;
+  };
+
+  // 1. Admin Page
+  if (page === 'admin') {
+      return (
+        <PageContainer>
+            {renderNotifications()}
+            <div className="flex items-center justify-between p-4 bg-white shadow-sm">
+                <button onClick={() => setPage('home')} className="p-2 rounded-full hover:bg-gray-100 text-[#8b5e3c]"><ArrowLeft/></button>
+                <h2 className="text-xl font-bold text-[#5d4037] flex items-center"><Database className="mr-2"/> 店主記帳後台</h2>
+                <div className="w-8"></div>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto">
+                <div className="mb-6">
+                    <label className="block text-sm font-bold text-[#8b5e3c] mb-2">請將所有文字(含訂單+客人回傳資料)全部貼上：</label>
+                    <textarea 
+                        className="w-full h-64 p-3 border-2 border-[#e6ccb2] rounded-xl focus:border-[#8b5e3c] text-sm"
+                        placeholder="長按貼上 LINE 的完整對話內容..."
+                        value={adminInput}
+                        onChange={(e) => setAdminInput(e.target.value)}
+                    />
+                    <button onClick={parseOrderText} className="mt-2 w-full bg-[#8b5e3c] text-white py-2 rounded-lg font-bold shadow-sm active:scale-95"><Wand2 className="w-4 h-4 inline mr-1"/> 解析資料</button>
+                </div>
+                {parsedData && (
+                    <div className="bg-[#fffbf7] p-4 rounded-xl border border-[#d4a373] space-y-4 animate-fade-in-up">
+                        <div className="flex justify-between border-b border-[#e6ccb2] pb-2"><span className="text-[#a67c52]">寵物名：<span className="text-[#5d4037] font-bold">{parsedData.petName}</span></span><span className="text-[#a67c52]">金額：<span className="text-[#5d4037] font-bold">${parsedData.price}</span></span></div>
+                        
+                        <div><label className="block text-xs font-bold text-[#8b5e3c] mb-1">飼主電話</label><input type="tel" value={adminPhone} onChange={e => setAdminPhone(e.target.value)} className="w-full p-2 border border-[#e6ccb2] rounded-lg"/></div>
+                        <div><label className="block text-xs font-bold text-[#8b5e3c] mb-1">地址</label><input type="text" value={adminAddress} onChange={e => setAdminAddress(e.target.value)} className="w-full p-2 border border-[#e6ccb2] rounded-lg"/></div>
+                        <div><label className="block text-xs font-bold text-[#8b5e3c] mb-1">匯款後五碼</label><input type="text" value={adminLast5} onChange={e => setAdminLast5(e.target.value)} className="w-full p-2 border border-[#e6ccb2] rounded-lg"/></div>
+                        <div><label className="block text-xs font-bold text-[#8b5e3c] mb-1">備註 (年齡/用途)</label><input type="text" value={adminNote} onChange={e => setAdminNote(e.target.value)} className="w-full p-2 border border-[#e6ccb2] rounded-lg"/></div>
+                        
+                        <button onClick={handleSubmitToGoogle} className="w-full bg-[#06C755] text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 flex items-center justify-center"><FileText className="w-5 h-5 mr-2"/> 送出記帳</button>
+                    </div>
+                )}
+            </div>
+        </PageContainer>
+      );
+  }
+
+  // 2. Home Page
+  if (page === 'home') {
+    return (
+      <PageContainer>
+        {renderNotifications()}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-y-auto no-scrollbar w-full">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-[#faedcd] rounded-full mix-blend-multiply filter blur-3xl opacity-70 blob-animation" style={{ animationDelay: '0s' }}></div>
+          <div className="absolute bottom-0 right-0 w-64 h-64 bg-[#e6ccb2] rounded-full mix-blend-multiply filter blur-3xl opacity-70 blob-animation" style={{ animationDelay: '2s' }}></div>
+
+          <div className="text-center z-10 mb-8 mt-4">
+             <div className="mb-4" onClick={handleLogoClick}>
+                <h1 className="text-6xl font-black text-[#8b5e3c] tracking-tight mix-blend-multiply cursor-pointer select-none" style={{fontFamily: '"Times New Roman", serif'}}>Ho00p</h1>
+            </div>
+            <p className="text-[#a67c52] text-xl tracking-widest font-light">寵物蛋糕 & 輕食</p>
+            <div className="h-1 w-24 bg-[#d4a373] mx-auto mt-4 rounded-full"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl z-10 px-4 mb-8">
+            <button onClick={() => startOrder('cake')} className="group bg-white p-6 rounded-[2rem] shadow-xl hover:shadow-2xl transition-all border-2 border-[#f0e6dd] hover:border-[#d4a373] text-left flex flex-col justify-between min-h-[220px] relative overflow-hidden">
+               <div className="absolute right-[-20px] bottom-[-20px] opacity-10"><Cake size={150} color="#8b5e3c"/></div>
+               <div className="flex items-center space-x-4 mb-4"><div className="bg-[#faedcd] p-3 rounded-full"><Cake className="text-[#8b5e3c] w-8 h-8" /></div><h2 className="text-2xl font-bold text-[#5d4037]">客製化蛋糕</h2></div>
+               <p className="text-[#8b5e3c] opacity-70 text-sm md:text-base">專屬慶生、節日慶祝。<br/>包含淋面設計與豐富配料。</p>
+               <div className="mt-4 flex items-center text-[#d4a373] font-bold group-hover:translate-x-2 transition-transform">開始訂製 <ChevronRight className="w-5 h-5"/></div>
+            </button>
+            <button onClick={() => startOrder('meal')} className="group bg-white p-6 rounded-[2rem] shadow-xl hover:shadow-2xl transition-all border-2 border-[#f0e6dd] hover:border-[#d4a373] text-left flex flex-col justify-between min-h-[220px] relative overflow-hidden">
+               <div className="absolute right-[-20px] bottom-[-20px] opacity-10"><UtensilsCrossed size={150} color="#8b5e3c"/></div>
+               <div className="flex items-center space-x-4 mb-4"><div className="bg-[#faedcd] p-3 rounded-full"><UtensilsCrossed className="text-[#8b5e3c] w-8 h-8" /></div><h2 className="text-2xl font-bold text-[#5d4037]">輕食</h2></div>
+               <p className="text-[#8b5e3c] opacity-70 text-sm md:text-base">甜甜圈與爪狀肉餅。<br/>營養均衡的可愛小點心。</p>
+               <div className="mt-4 flex items-center text-[#d4a373] font-bold group-hover:translate-x-2 transition-transform">開始訂製 <ChevronRight className="w-5 h-5"/></div>
+            </button>
+          </div>
+          {cart.length > 0 && (
+             <div className="z-10 w-full max-w-2xl px-4 mb-8">
+                <button onClick={() => setPage('summary')} className="w-full bg-[#8b5e3c] text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center space-x-2 hover:bg-[#7a5235]">
+                    <ShoppingBag className="w-5 h-5" /><span>查看購物車 ({cart.length})</span>
+                </button>
+             </div>
+          )}
+          <div className="text-[#d4a373] text-xs opacity-60 pb-6">© Ho00p Studio</div>
+        </div>
+        {toast && (<div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-2xl flex items-center space-x-3 shadow-2xl z-[60] w-max max-w-[90%]">{toast.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" /> : <Check className="w-5 h-5 text-green-400 flex-shrink-0" />}<span>{toast.message}</span></div>)}
+      </PageContainer>
+    );
+  }
+
+  // 3. Builder Page
+  if (page === 'builder') {
+    return (
+      <PageContainer>
+        <header className="bg-white/90 backdrop-blur-md sticky top-0 z-40 px-4 py-3 shadow-sm flex items-center justify-between flex-shrink-0"><button onClick={() => setPage('home')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-[#8b5e3c]"><ArrowLeft className="w-6 h-6" /></button><h1 className="text-lg font-bold text-[#5d4037]">{orderType === 'cake' ? '訂製蛋糕' : '訂製輕食'}</h1><div className="w-8"></div></header>
+        <div className="sticky top-[56px] z-30 bg-[#fdfbf7] shadow-sm flex-shrink-0"><div className="flex space-x-3 overflow-x-auto no-scrollbar p-3">{orderType === 'meal' ? (<CategoryTab id="shape" label="輕食選擇" icon={CATEGORIES_DATA.shape.icon} isActive={activeTab === 'shape'} onClick={setActiveTab} />) : (<><CategoryTab id="meat" label="主食肉類" icon={CATEGORIES_DATA.meat.icon} isActive={activeTab === 'meat'} onClick={setActiveTab} /><CategoryTab id="veg" label="蔬菜配料" icon={CATEGORIES_DATA.veg.icon} isActive={activeTab === 'veg'} onClick={setActiveTab} /><CategoryTab id="fruit" label="水果點綴" icon={CATEGORIES_DATA.fruit.icon} isActive={activeTab === 'fruit'} onClick={setActiveTab} /><CategoryTab id="color" label="淋面顏色" icon={CATEGORIES_DATA.color.icon} isActive={activeTab === 'color'} onClick={setActiveTab} /></>)}</div></div>
+        <div ref={scrollRef} className="flex-1 p-4 pb-40 overflow-y-auto scroll-smooth" onScroll={handleScroll}><div className="mb-6 bg-[#fffbf7] p-3 rounded-xl border border-[#f0e6dd] flex items-start"><Info className="w-5 h-5 text-[#d4a373] mr-2 mt-0.5 flex-shrink-0" /><p className="text-sm text-[#8b5e3c]">{activeTab === 'shape' && '請選擇喜歡的輕食 (可多選)'}{activeTab === 'meat' && '請選擇蛋白質來源 (必選，最多 3 種)'}{activeTab === 'veg' && '搭配健康蔬菜 (最多 3 種)'}{activeTab === 'fruit' && '天然水果增加風味 (限選 1 種)'}{activeTab === 'color' && '夢幻淋面 (必選，限選 1 種)'}</p></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{CATEGORIES_DATA[activeTab]?.items?.map(item => (<IngredientCard key={item.id} item={item} category={activeTab} isSelected={selections[activeTab]?.some(i => i.id === item.id)} onToggle={toggleSelection} formatPrice={formatPrice} />))}</div></div>
+        <div className={`fixed bottom-6 left-0 right-0 z-50 flex justify-center transition-transform duration-300 ease-in-out ${isCartBarVisible ? 'translate-y-0' : 'translate-y-[120%]'}`}><div className="w-full max-w-[1024px] bg-white shadow-[0_-5px_20px_rgba(0,0,0,0.1)] rounded-t-[2rem] p-6 mx-auto"><div className="flex justify-between items-end mb-4 px-2"><div><p className="text-xs text-[#a67c52] font-medium mb-1">本項金額</p><p className="text-4xl font-black text-[#5d4037]">{formatPrice(calculateCurrentItemTotal())}</p></div><div className="text-right"><p className="text-xs text-[#a67c52]">已選擇</p><p className="text-base font-bold text-[#8b5e3c]">{Object.values(selections).reduce((acc, curr) => acc + curr.length, 0)} 項內容</p></div></div><button onClick={handleAddToCart} className="w-full bg-[#8b5e3c] text-white py-4 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center space-x-2 hover:bg-[#7a5235]"><Plus className="w-6 h-6" /><span>加入購物車</span></button></div></div>
+        {toast && (<div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-2xl flex items-center space-x-3 shadow-2xl z-[60] w-max max-w-[90%]">{toast.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" /> : <Check className="w-5 h-5 text-green-400 flex-shrink-0" />}<span className="font-medium text-sm sm:text-base">{toast.message}</span></div>)}
+      </PageContainer>
+    );
+  }
+
+  // 4. Summary Page
+  if (page === 'summary') {
+    const subtotal = calculateCartSubtotal();
+    const shipping = subtotal >= 1000 ? 0 : 180;
+    const finalTotal = subtotal + shipping;
+
+    return (
+      <PageContainer>
+        <div className="flex items-center justify-between p-4 sticky top-0 bg-[#fdfbf7] z-40"><button onClick={() => setPage('home')} className="p-2 rounded-full hover:bg-[#eae0d5] text-[#8b5e3c] transition-colors"><ArrowLeft className="w-8 h-8" /></button><h2 className="text-xl font-bold text-[#5d4037]">購物車</h2><div className="w-8"></div></div>
+        <div className="flex-1 overflow-y-auto no-scrollbar p-6 pb-40">
+           <div className="bg-white rounded-[2rem] shadow-xl p-8 border border-[#f0e6dd] mb-6 relative max-w-2xl mx-auto">
+              <div className="absolute top-0 left-0 right-0 h-2 bg-[#d4a373] opacity-20"></div>
+              <h2 className="text-3xl font-bold text-center text-[#5d4037] mb-2">訂購清單</h2>
+              <p className="text-center text-[#a67c52] text-sm mb-8 border-b border-dashed border-[#d4a373] pb-6">Ho00p 寵物蛋糕&輕食</p>
+              <div className="space-y-6 mb-8">
+                 {cart.length === 0 ? (<div className="text-center py-10 text-gray-400">購物車是空的喔！</div>) : (cart.map((item, index) => (<div key={item.id} className="bg-[#fdfbf7] p-6 rounded-xl border border-[#f0e6dd] relative"><button onClick={() => removeFromCart(item.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5" /></button><h3 className="text-lg font-bold text-[#8b5e3c] mb-3 flex items-center">{item.type === 'cake' ? <Cake className="w-5 h-5 mr-2"/> : <UtensilsCrossed className="w-5 h-5 mr-2"/>}{item.type === 'cake' ? `客製化蛋糕 #${index+1}` : `輕食餐點 #${index+1}`}</h3><div className="space-y-2 text-sm text-[#5d4037] mb-3">{item.selections.shape.length > 0 && <div className="flex"><span className="font-bold w-12">造型：</span><span>{item.selections.shape.map(i=>i.name).join(', ')}</span></div>}{item.selections.meat.length > 0 && <div className="flex"><span className="font-bold w-12">肉類：</span><span>{item.selections.meat.map(i=>i.name).join(', ')}</span></div>}{item.selections.veg.length > 0 && <div className="flex"><span className="font-bold w-12">蔬菜：</span><span>{item.selections.veg.map(i=>i.name).join(', ')}</span></div>}{item.selections.fruit.length > 0 && <div className="flex"><span className="font-bold w-12">水果：</span><span>{item.selections.fruit.map(i=>i.name).join(', ')}</span></div>}{item.selections.color.length > 0 && <div className="flex"><span className="font-bold w-12">淋面：</span><span>{item.selections.color.map(i=>i.name).join(', ')}</span></div>}</div><div className="text-right font-bold text-lg text-[#d4a373]">{formatPrice(item.total)}</div></div>)))}
+              </div>
+              {cart.length > 0 && (<>
+                    <div className="bg-[#e6ccb2] bg-opacity-20 rounded-xl p-6 mb-6 border border-[#d4a373] border-opacity-30">
+                        <h3 className="font-bold text-[#8b5e3c] flex items-center mb-4 text-lg"><Wand2 className="w-5 h-5 mr-2 text-[#d4a373]" /> 小寶貝資料</h3>
+                        <div className="space-y-4"><div className="flex flex-col sm:flex-row gap-4"><input type="text" placeholder="名字 (如: 豆豆)" value={petName} onChange={(e) => setPetName(e.target.value)} className="flex-1 bg-white border border-[#e6ccb2] rounded-xl px-4 py-3 text-base focus:outline-none focus:border-[#8b5e3c] text-[#5d4037]" /><input type="text" placeholder="用途 (如: 3歲生日, 獎勵)" value={occasion} onChange={(e) => setOccasion(e.target.value)} className="flex-1 bg-white border border-[#e6ccb2] rounded-xl px-4 py-3 text-base focus:outline-none focus:border-[#8b5e3c] text-[#5d4037]" /></div>{!aiGreeting && (<button onClick={handleSavePetData} className="w-full bg-[#d4a373] text-white py-3 rounded-xl font-bold text-lg shadow-md active:scale-95 transition-all flex justify-center items-center hover:bg-[#c29363]"><Save className="w-5 h-5 mr-2"/> 儲存</button>)}</div>{aiGreeting && <div className="mt-4 bg-white p-4 rounded-xl text-base text-[#5d4037] border-l-4 border-[#d4a373] shadow-sm whitespace-pre-line">{aiGreeting}</div>}
+                    </div>
+                    {/* 結算區塊 */}
+                    <div className="mt-6 pt-6 border-t-2 border-[#f0e6dd] space-y-2">
+                        <div className="flex justify-between items-center text-[#a67c52]"><span>商品小計</span><span>{formatPrice(subtotal)}</span></div>
+                        <div className="flex justify-between items-center text-[#a67c52]"><span>運費 {subtotal >= 1000 ? '(滿千免運)' : '(未滿千)'}</span><span>{formatPrice(shipping)}</span></div>
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#f0e6dd]"><span className="text-xl font-bold text-[#5d4037]">訂單總金額</span><span className="text-4xl font-black text-[#8b5e3c]">{formatPrice(finalTotal)}</span></div>
+                    </div>
+                </>)}
+           </div>
+           <div className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-[#f0e6dd] flex flex-col gap-3 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]"><button onClick={() => setPage('home')} className="w-full bg-white text-[#8b5e3c] border-2 border-[#8b5e3c] py-4 rounded-xl font-bold text-xl shadow-sm active:scale-95 transition-transform flex items-center justify-center space-x-2 hover:bg-[#f0e6dd]"><Plus className="w-6 h-6" /><span>繼續點餐</span></button>{cart.length > 0 && (<button onClick={handleCopy} className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center space-x-2 hover:bg-[#05b34c]"><Copy className="w-6 h-6" /><span>複製訂單並前往 LINE</span></button>)}</div>
+        </div>
+        {toast && (<div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-2xl flex items-center space-x-3 shadow-2xl z-[60] w-max max-w-[90%]">{toast.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" /> : <Check className="w-5 h-5 text-green-400 flex-shrink-0" />}<span>{toast.message}</span></div>)}
+      </PageContainer>
+    );
+  }
+
+  return null;
+};
+
+export default Ho00pApp;
