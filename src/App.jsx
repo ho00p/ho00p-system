@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Home, ArrowLeft, ChevronRight, ChevronLeft, X, LogOut, Plus, 
   MinusCircle, PlusCircle, Trash, Trash2, Edit, Save, Copy, Check, 
@@ -9,18 +9,16 @@ import {
   Lock, ShoppingBag, Truck, ShieldCheck, Wand2, Image as ImageIcon, 
   Sparkles, Layers, Tag, Info, Shirt, UtensilsCrossed, Bone, 
   Leaf, Heart, Palette, Instagram as InstagramIcon, Cake as CakeIcon,
-  Store, ClipboardList, WifiOff, AlertTriangle
+  Store, ClipboardList, WifiOff, AlertTriangle, PartyPopper, Gift, Megaphone
 } from 'lucide-react';
 
 const { useState, useEffect, useRef, useMemo, Component } = React;
 
 // [修復] 防止 ReferenceError: tailwind is not defined
-// 如果環境在 CDN 載入前就嘗試存取 tailwind，這行能防止崩潰
 if (typeof window !== 'undefined' && !window.tailwind) {
   window.tailwind = { config: {} };
 }
 
-// [除錯] 確認檔案已載入
 console.log("App.jsx is loaded and running...");
 
 // =========================================================================
@@ -108,7 +106,8 @@ const styles = `
   @keyframes modalPop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
   @keyframes float { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
   @keyframes pulse-soft { 0% { box-shadow: 0 0 0 0 rgba(139, 94, 60, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(139, 94, 60, 0); } 100% { box-shadow: 0 0 0 0 rgba(139, 94, 60, 0); } }
-    
+  @keyframes shine { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
+
   .splash-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; background-color: #fdfbf7; transition: opacity 1s ease-in-out; }
   .splash-container.fade-out { opacity: 0; pointer-events: none; }
   .loading-char { display: inline-block; animation: bounce 1.4s infinite ease-in-out both; color: #5d4037; }
@@ -117,6 +116,7 @@ const styles = `
   .blob-animation { animation: float 7s infinite; }
   .cart-pulse { animation: pulse-soft 2s infinite; }
   .glass-diagonal { position: absolute; top: 0; right: 0; bottom: 0; width: 45%; background: linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 30%, rgba(255,255,255,0.4) 100%); backdrop-filter: blur(2px); transform: skewX(-20deg) translateX(20%); pointer-events: none; border-left: 1px solid rgba(255,255,255,0.3); }
+  .shine-text { background: linear-gradient(to right, #8b5e3c 20%, #d4a373 40%, #d4a373 60%, #8b5e3c 80%); background-size: 200% auto; color: #000; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 3s linear infinite; }
     
   .input-base { width: 100%; padding: 10px 12px; border: 1px solid #e6ccb2; border-radius: 12px; font-size: 14px; outline: none; transition: border-color 0.2s; background-color: #fffbf7; color: #5d4037; }
   .input-base:focus { border-color: #8b5e3c; background-color: white; }
@@ -143,7 +143,7 @@ const CONFIG = {
   copyright: "© 2025 Ho00p Studio. All Rights Reserved",
   menuItems: [
     { id: 'apparel', title: '精選服飾', subTitle: 'CURATED COLLECTION', icon: Shirt, bgImage: "https://i.meee.com.tw/4gfBrBK.png" },
-    { id: 'food', title: '蛋糕輕食', subTitle: 'FRESH KITCHEN', icon: UtensilsCrossed, bgImage: "https://i.meee.com.tw/B6aFB2u.png" },
+    { id: 'food', title: '毛孩私廚', subTitle: 'FRESH KITCHEN', icon: UtensilsCrossed, bgImage: "https://i.meee.com.tw/B6aFB2u.png" },
     { id: 'about', title: '關於我們', subTitle: 'ABOUT US', icon: Users, bgImage: "https://i.meee.com.tw/oSGhVA1.png" }
   ]
 };
@@ -153,12 +153,18 @@ const INITIAL_PRODUCTS = [
   { id: 'demo_2', name: "機能防水雨衣 - 黃色", price: 890, tags: ['中型犬', '大型犬'], images: ["https://placehold.co/600x600/fff3b0/8b5e3c?text=Raincoat"], note: "高係數防水材質，反光條設計，夜間散步更安全。", sizeGroups: [{ id: 3, label: "中型犬適用", sizes: ["M", "L"] }, { id: 4, label: "大型犬適用 (黃金/拉拉)", sizes: ["XL", "2XL", "3XL"] }] }
 ];
 
+const INITIAL_ADDONS = [
+  { id: 'addon_1', name: "派對生日帽", price: 150, image: "https://placehold.co/300x300/ffecd1/8b5e3c?text=Hat", desc: "可愛慶生必備！", active: true },
+  { id: 'addon_2', name: "數字蠟燭 (單支)", price: 20, image: "", desc: "請備註數字", active: true },
+  { id: 'addon_3', name: "Ho00p 專屬圍兜", price: 199, image: "https://placehold.co/300x300/e6ccb2/8b5e3c?text=Bib", desc: "防水材質，吃飯不弄髒", active: true }
+];
+
 const CATEGORIES_DATA_FOOD = {
-    shape: { title: "輕食選擇", icon: <UtensilsCrossed size={16} />, items: [{ id: 'donut', name: '甜甜圈 (2個/份)', price: 240, desc: '可愛圓潤造型，一份包含 2 個甜甜圈。' }, { id: 'paw', name: '爪狀肉餅 (3個/份)', price: 300, desc: '萌萌肉球造型，一份包含 3 個肉餅。' }] },
+    shape: { title: "美味開發中 . . .", icon: <UtensilsCrossed size={16} /> },
     meat: { title: "肉類主食", icon: <Bone size={16} />, items: [{ id: 'A', name: '牛肉', price: 300, desc: '高鐵、高鋅、B群豐富，增強免疫力與肌肉發展。' }, { id: 'B', name: '雞肉', price: 200, desc: '高蛋白、低脂。' }, { id: 'C', name: '鯛魚', price: 250, desc: '高蛋白、低脂肪，適合減肥與腎病管理。' }, { id: 'D', name: '鮭魚', price: 300, desc: '含Omega-3脂肪酸、EPA、DHA，保護心血管與皮膚。' }, { id: 'E', name: '蝦子', price: 250, desc: '優質蛋白質、Omega-3、牛磺酸。皮膚健康、毛髮亮麗。' }, { id: 'F', name: '雞胗', price: 200, desc: '鐵與鋅含量高，幫助消化與補氣血，適口性佳。' }] },
     veg: { title: "蔬菜配料", icon: <Leaf size={16} />, items: [{ id: 'a', name: '菠菜', price: 100, desc: '鐵質與葉酸豐富。' }, { id: 'b', name: '花椰菜', price: 100, desc: '幫助抗氧化、清肝排毒、促進免疫系統。' }, { id: 'c', name: '貓薄荷', price: 50, desc: '幫助情緒放鬆解壓，安撫(狗狗也可以吃喔!)。' }, { id: 'd', name: '南瓜', price: 100, desc: '高纖維，有助腸胃蠕動與軟便。' }, { id: 'e', name: '地瓜', price: 100, desc: '幫助腸胃蠕動，含抗氧化物，增加飽足感。' }, { id: 'f', name: '紫薯', price: 100, desc: '幫助腸胃蠕動，促進排便改善毛球、便秘。' }, { id: 'g', name: '紅蘿蔔', price: 100, desc: 'β-胡蘿蔔素，幫助增強免疫、保護眼睛、促進皮膚健康。' }, { id: 'h', name: '白蘿蔔', price: 100, desc: '幫助消化、去脹氣。' }, { id: 'i', name: '小黃瓜', price: 100, desc: '含水量高，有助解暑與補水。' }, { id: 'j', name: '山藥', price: 150, desc: '幫助腸胃、抗發炎，膳食纖維豐富。' }] },
     fruit: { title: "水果點綴", icon: <Heart size={16} />, items: [{ id: '1', name: '蘋果', price: 100, desc: '維生素C、膳食纖維，有助消化、整腸、降低口臭。' }, { id: '2', name: '香蕉', price: 100, desc: '鉀豐富，幫助心臟與神經功能，便秘可食用。' }, { id: '3', name: '藍莓', price: 200, desc: '幫助抗氧化、保護視力、減緩老化。' }, { id: '4', name: '木瓜', price: 150, desc: '木瓜酵素可幫助消化，富含維生素C、A。' }, { id: '5', name: '小番茄', price: 100, desc: '富含維生素C、A、纖維，有助消化與抗氧化。' }] },
-    color: { title: "淋面顏色", icon: <Palette size={16} />, items: [{ id: '@', name: '藍色', price: 100, desc: '蝶豆花粉，螺旋藻粉', colorCode: '#A0C4FF' }, { id: '#', name: '綠色', price: 100, desc: '菠菜粉', colorCode: '#22B822' }, { id: 'w', name: '白色', price: 100, desc: '馬鈴薯泥', colorCode: '#FFFFFF' }, { id: '+', name: '紅色', price: 100, desc: '紅甜菜根粉，火龍果', colorCode: '#FFADAD' }, { id: '-', name: '黃色', price: 100, desc: '薑黃粉，地瓜', colorCode: '#FDFFB6' }, { id: '%', name: '紫色', price: 100, desc: '紫薯泥、藍莓泥', colorCode: '#E7C6FF' }] }
+    color: { title: "糕體顏色", icon: <Palette size={16} />, items: [{ id: '@', name: '藍色', price: 100, desc: '蝶豆花粉，螺旋藻粉', colorCode: '#A0C4FF' }, { id: '#', name: '綠色', price: 100, desc: '菠菜粉', colorCode: '#22B822' },{ id: '+', name: '紅色', price: 100, desc: '紅甜菜根粉', colorCode: '#FFADAD' }, { id: '-', name: '黃色', price: 100, desc: '南瓜粉，地瓜', colorCode: '#FDFFB6' }, { id: '%', name: '紫色', price: 100, desc: '紫薯泥、藍莓粉', colorCode: '#E7C6FF' }] }
   };
 
 // =========================================================================
@@ -224,7 +230,7 @@ const PasswordModal = ({ onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const inputPwd = password.trim();
-     
+      
     // 僅使用最安全的 Base64 驗證，移除複雜的 sha256 以免在非安全環境崩潰
     if (btoa(inputPwd) === ADMIN_PASSWORD_BASE64) {
         onSuccess(); 
@@ -556,7 +562,7 @@ const AdminAccountingPage = ({ onBack }) => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200">
-                                <span className="text-xs font-bold text-[#d4a373] block mb-1">🍰 蛋糕/輕食內容</span>
+                                <span className="text-xs font-bold text-[#d4a373] block mb-1">🍰 蛋糕內容</span>
                                 <pre className="text-xs text-[#5d4037] whitespace-pre-wrap">{parsedData.cakeContent || "(無)"}</pre>
                              </div>
                              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
@@ -648,6 +654,40 @@ const AdminProductModal = ({ product, onSave, onClose, onDelete }) => {
       </div>
     </div>
   );
+};
+
+const AdminAddonModal = ({ addon, onSave, onClose, onDelete }) => {
+    const [formData, setFormData] = useState(() => ({
+        id: addon?.id, name: addon?.name || '', price: addon?.price || '',
+        image: addon?.image || '', desc: addon?.desc || '', active: addon?.active ?? true
+    }));
+    const handleChange = (f, v) => setFormData(p => ({ ...p, [f]: v }));
+    const handleSave = () => { onSave({ ...formData, price: parseInt(formData.price) || 0 }); };
+
+    return (
+        <div className="fixed inset-0 z-[3002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md font-cute" onClick={onClose}>
+            <div className="bg-[#fdfbf7] w-full max-w-sm rounded-[1.5rem] shadow-2xl relative modal-content flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-[#e6ccb2] flex justify-between items-center bg-white">
+                    <h3 className="text-lg font-black text-[#5d4037]">管理加購品</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20}/></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div><label className="text-xs font-bold text-[#8b5e3c] block mb-1">名稱</label><input type="text" value={formData.name} onChange={e => handleChange('name', e.target.value)} className="input-base"/></div>
+                    <div><label className="text-xs font-bold text-[#8b5e3c] block mb-1">價格</label><input type="number" value={formData.price} onChange={e => handleChange('price', e.target.value)} className="input-base"/></div>
+                    <div><label className="text-xs font-bold text-[#8b5e3c] block mb-1">圖片連結 (可選)</label><input type="text" value={formData.image} onChange={e => handleChange('image', e.target.value)} className="input-base"/></div>
+                    <div><label className="text-xs font-bold text-[#8b5e3c] block mb-1">簡短說明</label><input type="text" value={formData.desc} onChange={e => handleChange('desc', e.target.value)} className="input-base"/></div>
+                    <div className="flex items-center gap-2 mt-2">
+                        <input type="checkbox" checked={formData.active} onChange={e => handleChange('active', e.target.checked)} className="w-5 h-5 accent-[#8b5e3c]"/>
+                        <label className="text-sm font-bold text-[#5d4037]">上架中</label>
+                    </div>
+                </div>
+                <div className="p-4 border-t border-[#e6ccb2] bg-white flex gap-3">
+                    {addon && <button onClick={() => onDelete(addon.id)} className="px-4 text-red-400 font-bold">刪除</button>}
+                    <button onClick={handleSave} className="flex-1 bg-[#8b5e3c] text-white py-2 rounded-xl font-bold shadow-md">儲存</button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const ApparelPage = ({ onBack, onAddToCart, isAdmin, onSecretClick, onLogout }) => {
@@ -807,9 +847,8 @@ const FoodOrderingSystem = ({ onBack, onAddToCart, onSecretClick, onLogout, isAd
             </button>
             <button onClick={() => startOrder('meal')} className="group bg-white p-6 rounded-[2rem] shadow-xl border-2 border-[#f0e6dd] text-left flex flex-col justify-between min-h-[280px] relative overflow-hidden">
                <div className="absolute right-[-20px] bottom-[-20px] opacity-10"><UtensilsCrossed size={150} color="#8b5e3c"/></div>
-               <div className="flex items-center space-x-4 mb-4"><div className="bg-[#faedcd] p-3 rounded-full"><UtensilsCrossed className="text-[#8b5e3c] w-8 h-8" /></div><h2 className="text-2xl font-bold text-[#5d4037]">輕食</h2></div>
-               <p className="text-[#8b5e3c] opacity-70 text-sm md:text-base">甜甜圈與爪狀肉餅。<br/>營養均衡的可愛小點心。</p>
-               <div className="mt-4 flex items-center text-[#d4a373] font-bold group-hover:translate-x-2 transition-transform">開始訂製 <ChevronRight className="w-5 h-5"/></div>
+               <div className="flex items-center space-x-4 mb-4"><div className="bg-[#faedcd] p-3 rounded-full"><UtensilsCrossed className="text-[#8b5e3c] w-8 h-8" /></div><h2 className="text-2xl font-bold text-[#5d4037]">美味開發中 . . .</h2></div>
+               <ChevronRight className="w-5 h-5"/>
             </button>
           </div>
           <Footer className="pb-6"/>
@@ -821,9 +860,9 @@ const FoodOrderingSystem = ({ onBack, onAddToCart, onSecretClick, onLogout, isAd
   if (page === 'builder') return (
       <div className="w-full h-full bg-[#fdfbf7] flex flex-col font-cute">
         <header className="bg-white/90 backdrop-blur-md sticky top-0 z-40 px-4 py-3 shadow-sm flex items-center justify-between w-full max-w-7xl mx-auto"><button onClick={() => setPage('home')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-[#8b5e3c]"><ArrowLeft className="w-6 h-6" /></button><h1 className="text-lg font-bold text-[#5d4037]">FRESH KITCHEN</h1><div className="w-8"></div></header>
-        <div className="sticky top-[56px] z-30 bg-[#fdfbf7]/95 shadow-sm flex-shrink-0 w-full overflow-x-auto no-scrollbar"><div className="flex space-x-4 p-4 max-w-5xl mx-auto">{orderType === 'meal' ? (<CategoryTab id="shape" label="輕食選擇" icon={CATEGORIES_DATA.shape.icon} isActive={activeTab === 'shape'} onClick={setActiveTab} />) : (<><CategoryTab id="meat" label="主食肉類" icon={CATEGORIES_DATA.meat.icon} isActive={activeTab === 'meat'} onClick={setActiveTab} /><CategoryTab id="veg" label="蔬菜配料" icon={CATEGORIES_DATA.veg.icon} isActive={activeTab === 'veg'} onClick={setActiveTab} /><CategoryTab id="fruit" label="水果點綴" icon={CATEGORIES_DATA.fruit.icon} isActive={activeTab === 'fruit'} onClick={setActiveTab} /><CategoryTab id="color" label="淋面顏色" icon={CATEGORIES_DATA.color.icon} isActive={activeTab === 'color'} onClick={setActiveTab} /></>)}</div></div>
+        <div className="sticky top-[56px] z-30 bg-[#fdfbf7]/95 shadow-sm flex-shrink-0 w-full overflow-x-auto no-scrollbar"><div className="flex space-x-4 p-4 max-w-5xl mx-auto">{orderType === 'meal' ? (<CategoryTab id="shape" label="美味開發中 . . ." icon={CATEGORIES_DATA.shape.icon} isActive={activeTab === 'shape'} onClick={setActiveTab} />) : (<><CategoryTab id="meat" label="主食肉類" icon={CATEGORIES_DATA.meat.icon} isActive={activeTab === 'meat'} onClick={setActiveTab} /><CategoryTab id="veg" label="蔬菜配料" icon={CATEGORIES_DATA.veg.icon} isActive={activeTab === 'veg'} onClick={setActiveTab} /><CategoryTab id="fruit" label="水果點綴" icon={CATEGORIES_DATA.fruit.icon} isActive={activeTab === 'fruit'} onClick={setActiveTab} /><CategoryTab id="color" label="淋面顏色" icon={CATEGORIES_DATA.color.icon} isActive={activeTab === 'color'} onClick={setActiveTab} /></>)}</div></div>
         <div className="flex-1 p-6 pb-40 overflow-y-auto no-scrollbar w-full max-w-5xl mx-auto">
-            <div className="mb-8 bg-[#fffbf7] p-4 rounded-2xl border-2 border-[#faedcd] flex items-start shadow-sm"><Info className="w-5 h-5 text-[#d4a373] mr-3 mt-0.5" /><p className="text-base text-[#8b5e3c]">{activeTab === 'shape' ? '輕食 (可多選)' : activeTab === 'meat' ? '新鮮主食 (必選, 最多3)' : activeTab === 'veg' ? '健康蔬菜 (最多3)' : activeTab === 'fruit' ? '風味水果 (限1)' : '蛋糕顏色 (必選, 限1)'}</p></div>
+            <div className="mb-8 bg-[#fffbf7] p-4 rounded-2xl border-2 border-[#faedcd] flex items-start shadow-sm"><Info className="w-5 h-5 text-[#d4a373] mr-3 mt-0.5" /><p className="text-base text-[#8b5e3c]">{activeTab === 'shape' ? '美味開發中 . . .' : activeTab === 'meat' ? '新鮮主食 (必選, 最多3)' : activeTab === 'veg' ? '健康蔬菜 (最多3)' : activeTab === 'fruit' ? '風味水果 (限1)' : '蛋糕顏色 (必選, 限1)'}</p></div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">{CATEGORIES_DATA[activeTab]?.items?.map(item => (<IngredientCard key={item.id} item={item} category={activeTab} isSelected={selections[activeTab]?.some(i => i.id === item.id)} onToggle={toggleSelection} formatPrice={formatPrice} />))}</div>
         </div>
         <div className={`fixed bottom-0 left-0 right-0 z-50 flex justify-center transition-transform duration-300 ${isCartBarVisible ? 'translate-y-0' : 'translate-y-[120%]'}`}><div className="w-full max-w-[1024px] bg-white shadow-[0_-5px_30px_rgba(0,0,0,0.15)] rounded-t-[2rem] p-6 pb-8 border-t border-[#f0e6dd]"><div className="flex justify-between items-end mb-4 px-2"><div><p className="text-xs text-[#a67c52] font-bold mb-1 uppercase">金額</p><p className="text-4xl font-black text-[#5d4037]">{formatPrice(calculateCurrentItemTotal())}</p></div><div className="text-right"><p className="text-xs text-[#a67c52] font-bold uppercase">內容</p><p className="text-base font-bold text-[#8b5e3c]">{Object.values(selections).flat().length} 項</p></div></div><button onClick={handleAddToCartLocal} className="w-full bg-[#8b5e3c] text-white py-4 rounded-xl font-bold text-xl shadow-lg active:scale-95 flex items-center justify-center space-x-2"><Plus className="w-6 h-6" /><span>加入購物車</span></button></div></div>
@@ -833,22 +872,110 @@ const FoodOrderingSystem = ({ onBack, onAddToCart, onSecretClick, onLogout, isAd
   return null;
 };
 
-const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, occasion, setOccasion, storeName, setStoreName }) => {
+const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, occasion, setOccasion, storeName, setStoreName, onAddAddon, isAdmin }) => {
+  const [addons, setAddons] = useState(INITIAL_ADDONS);
+  const [editingAddon, setEditingAddon] = useState(null);
+  const [showAddonModal, setShowAddonModal] = useState(false);
+  const [user, setUser] = useState(null);
+  
+  // 公告欄狀態
+  const [noticeText, setNoticeText] = useState("歡迎光臨 Ho00p！");
+  const [isEditingNotice, setIsEditingNotice] = useState(false);
+  const [editNoticeText, setEditNoticeText] = useState("");
+
+  useEffect(() => { const unsubscribe = onAuthStateChanged(auth, setUser); return () => unsubscribe(); }, []);
+  
+  // 抓取雲端加購品資料
+  useEffect(() => {
+    try { const s = localStorage.getItem('ho00p_addons'); if (s) setAddons(JSON.parse(s)); } catch (e) {}
+    if (db && user) {
+        const q = collection(db, 'artifacts', appId, 'public', 'data', 'addons');
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (list.length > 0) { setAddons(list); localStorage.setItem('ho00p_addons', JSON.stringify(list)); }
+        });
+        return () => unsubscribe();
+    }
+  }, [user]);
+
+  // [新增] 抓取公告資料
+  useEffect(() => {
+      if (db) {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'cartNotice');
+          const unsubscribe = onSnapshot(docRef, (docSnap) => {
+              if (docSnap.exists()) {
+                  setNoticeText(docSnap.data().text || "歡迎光臨 Ho00p！");
+              }
+          });
+          return () => unsubscribe();
+      }
+  }, []);
+
+  const handleSaveAddon = async (data) => {
+    const { id, ...cleanData } = data;
+    if (db && user) {
+        try {
+            const col = collection(db, 'artifacts', appId, 'public', 'data', 'addons');
+            if (id) await setDoc(doc(col, id), cleanData, { merge: true });
+            else await addDoc(col, cleanData);
+            setShowAddonModal(false); setEditingAddon(null); 
+            alert("加購品已更新"); return;
+        } catch(e) { alert(`雲端儲存失敗: ${e.message}`); }
+    }
+    // Offline fallback
+    const newItem = { ...data, id: data.id || Date.now().toString() };
+    setAddons(prev => {
+        const exists = prev.find(x => x.id === newItem.id);
+        const newP = exists ? prev.map(x => x.id === newItem.id ? newItem : x) : [newItem, ...prev];
+        localStorage.setItem('ho00p_addons', JSON.stringify(newP));
+        return newP;
+    });
+    setShowAddonModal(false); setEditingAddon(null);
+  };
+
+  const handleDeleteAddon = async (id) => {
+    if (!confirm("確定刪除此加購品？")) return;
+    if (db && user) { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'addons', id)); setShowAddonModal(false); return; } catch(e) {} }
+    setAddons(prev => { const newP = prev.filter(x => x.id !== id); localStorage.setItem('ho00p_addons', JSON.stringify(newP)); return newP; });
+    setShowAddonModal(false);
+  };
+
+  // [新增] 儲存公告
+  const handleSaveNotice = async () => {
+      if (db && user) {
+          try {
+              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'cartNotice'), {
+                  text: editNoticeText
+              }, { merge: true });
+              setIsEditingNotice(false);
+          } catch(e) {
+              alert("儲存失敗: " + e.message);
+          }
+      } else {
+          setNoticeText(editNoticeText);
+          setIsEditingNotice(false);
+          alert("離線模式已更新 (僅本次有效)");
+      }
+  };
+
   const subtotalApparel = cart.filter(i => i.type === 'apparel').reduce((acc, i) => acc + i.total, 0);
-  const subtotalFood = cart.filter(i => i.type !== 'apparel').reduce((acc, i) => acc + i.total, 0);
+  const subtotalAddon = cart.filter(i => i.type === 'addon').reduce((acc, i) => acc + i.total, 0);
+  const subtotalFood = cart.filter(i => i.type !== 'apparel' && i.type !== 'addon').reduce((acc, i) => acc + i.total, 0);
     
   const shipA = subtotalApparel > 0 ? (subtotalApparel >= 600 ? 0 : 80) : 0;
   const shipF = subtotalFood > 0 ? (subtotalFood >= 1000 ? 0 : 180) : 0;
     
   const totalShipping = shipA + shipF;
-  const subtotal = subtotalApparel + subtotalFood;
+  const subtotal = subtotalApparel + subtotalAddon + subtotalFood;
   const finalTotal = subtotal + totalShipping;
 
   const [toast, setToast] = useState(null);
   const hasApparel = cart.some(i => i.type === 'apparel');
-  const hasFood = cart.some(i => i.type !== 'apparel');
+  const hasFood = cart.some(i => i.type === 'meal' || i.type === 'cake');
   const formatPrice = (p) => `$${p}`;
   const showToast = (m, t = 'success') => { setToast({ message: m, type: t }); setTimeout(() => setToast(null), 5000); };
+
+  const isApparelOnly = cart.length > 0 && cart.every(item => item.type === 'apparel');
 
   const generateOrderText = () => {
     let text = `【 ${petName || "未命名"} 的訂購單 】\n`; 
@@ -856,8 +983,11 @@ const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, oc
     if (hasFood && occasion) text += `用途：${occasion}\n`; 
     text += '\n'; 
     cart.forEach((item, index) => {
-        if (item.type === 'apparel') text += `👕 服飾 #${index+1}: ${item.product.name}\n   尺寸: ${item.size} / 數量: ${item.quantity}\n   金額: ${formatPrice(item.total)}\n\n`;
-        else {
+        if (item.type === 'apparel') {
+            text += `👕 服飾 #${index+1}: ${item.product.name}\n   尺寸: ${item.size} / 數量: ${item.quantity}\n   金額: ${formatPrice(item.total)}\n\n`;
+        } else if (item.type === 'addon') {
+            text += `🎁 加購品 #${index+1}: ${item.name}\n   金額: ${formatPrice(item.total)}\n\n`;
+        } else {
             text += `${item.type==='cake'?'🎂':'🥯'} ${item.type==='cake'?'客製蛋糕':'輕食'} #${index+1}\n`;
             if (item.selections.shape?.length) text += `   品項: ${item.selections.shape.map(i=>i.name).join(',')}\n`;
             if (item.selections.meat?.length) text += `   肉類: ${item.selections.meat.map(i=>i.name).join(',')}\n`;
@@ -892,21 +1022,23 @@ const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, oc
                     <div key={i.id} className="bg-white p-5 rounded-2xl border border-[#f0e6dd] relative shadow-sm">
                         <button onClick={()=>removeFromCart(i.id)} className="absolute top-4 right-4 text-gray-300 hover:text-red-400"><Trash2 size={20}/></button>
                         <div className="flex items-start">
-                            <div className="bg-[#faedcd] p-3 rounded-full mr-4 text-[#8b5e3c]">{i.type==='apparel'?<Shirt size={20}/>:i.type==='cake'?<CakeIcon size={20}/>:<UtensilsCrossed size={20}/>}</div>
+                            <div className="bg-[#faedcd] p-3 rounded-full mr-4 text-[#8b5e3c]">{i.type==='apparel'?<Shirt size={20}/>:i.type==='addon'?<Gift size={20}/>:i.type==='cake'?<CakeIcon size={20}/>:<UtensilsCrossed size={20}/>}</div>
                             <div className="flex-1">
-                                <h3 className="text-lg font-bold text-[#5d4037] mb-1">{i.type==='apparel'?i.product.name:i.type==='cake'?'客製化蛋糕':'輕食餐點'}</h3>
+                                <h3 className="text-lg font-bold text-[#5d4037] mb-1">{i.type==='apparel'?i.product.name:i.type==='addon'?i.name:i.type==='cake'?'客製化蛋糕':'輕食餐點'}</h3>
                                 <div className="text-xs text-[#8b5e3c]">
                                     {i.type === 'apparel' 
                                       ? `尺寸: ${i.size} / 數量: ${i.quantity}` 
-                                      : (i.type === 'meal' 
+                                      : i.type === 'addon'
+                                        ? '加購商品'
+                                        : (i.type === 'meal' 
                                           ? `品項: ${i.selections.shape?.map(s => s.name).join(', ') || ''}`
                                           : [
                                                 i.selections.meat?.length ? `肉類:${i.selections.meat.map(m => m.name).join(',')}` : null,
                                                 i.selections.veg?.length ? `蔬菜:${i.selections.veg.map(v => v.name).join(',')}` : null,
                                                 i.selections.fruit?.length ? `水果:${i.selections.fruit.map(f => f.name).join(',')}` : null,
                                                 i.selections.color?.length ? `淋面:${i.selections.color.map(c => c.name).join(',')}` : null
-                                            ].filter(Boolean).join(' / ')
-                                      )
+                                              ].filter(Boolean).join(' / ')
+                                          )
                                     }
                                 </div>
                                 <div className="text-right font-bold text-[#d4a373] mt-2">{formatPrice(i.total)}</div>
@@ -915,7 +1047,70 @@ const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, oc
                     </div>
                  ))}
                </div>
+
+               {/* Addon Section */}
+               {!isApparelOnly && (
+                   <div className="mb-8 animate-element">
+                      <div className="flex justify-between items-center mb-4">
+                         <h3 className="text-lg font-black text-[#5d4037] flex items-center shine-text"><PartyPopper className="mr-2 text-[#d4a373]"/> 🔥 限時加購專區</h3>
+                         {isAdmin && <button onClick={()=>{setEditingAddon(null);setShowAddonModal(true)}} className="bg-[#8b5e3c] text-white text-xs px-2 py-1 rounded shadow">⚙️ 管理加購品</button>}
+                      </div>
+                      <div className="flex overflow-x-auto space-x-4 pb-4 hide-scrollbar">
+                         {addons.filter(a => a.active || isAdmin).map(addon => (
+                            <div key={addon.id} className={`flex-shrink-0 w-48 bg-white rounded-xl border border-[#e6ccb2] overflow-hidden shadow-sm relative ${!addon.active ? 'opacity-50' : ''}`}>
+                                {isAdmin && <button onClick={()=> {setEditingAddon(addon);setShowAddonModal(true)}} className="absolute top-1 right-1 bg-white/80 p-1 rounded-full text-blue-500 z-10"><Edit size={14}/></button>}
+                                <div className="h-32 bg-gray-100 relative">
+                                    {addon.image ? <img src={addon.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-gray-300"><Gift size={32}/></div>}
+                                    {!addon.active && <div className="absolute inset-0 bg-black/10 flex items-center justify-center text-xs font-bold text-white bg-black/40">已下架</div>}
+                                </div>
+                                <div className="p-3">
+                                    <h4 className="font-bold text-[#5d4037] text-sm line-clamp-1">{addon.name}</h4>
+                                    <p className="text-[10px] text-[#a67c52] line-clamp-1 mb-2">{addon.desc || '無說明'}</p>
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-black text-[#d4a373] text-sm">${addon.price}</span>
+                                        <button onClick={()=>onAddAddon({...addon, type: 'addon', total: addon.price})} className="bg-[#faedcd] hover:bg-[#f0e6dd] p-1.5 rounded-full text-[#8b5e3c]"><Plus size={14}/></button>
+                                    </div>
+                                </div>
+                            </div>
+                         ))}
+                         {addons.length === 0 && <div className="w-full text-center text-xs text-gray-400 py-4">暫無加購活動</div>}
+                      </div>
+                   </div>
+               )}
                
+               {/* [新增] 賣場公告欄 (取代之前的備註事項) */}
+               <div className="mb-6 animate-element relative">
+                    <div className="bg-[#fff9c4] border-2 border-[#fbc02d] rounded-2xl p-5 shadow-sm flex items-start">
+                        <div className="bg-[#fbc02d] p-2 rounded-full mr-3 text-white flex-shrink-0">
+                            <Megaphone size={20} />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-[#f57f17] text-lg mb-1">Ho00p小提醒</h3>
+                            {isEditingNotice ? (
+                                <div className="mt-2">
+                                    <textarea 
+                                        className="w-full p-2 border border-[#fbc02d] rounded-lg text-sm bg-white text-[#5d4037] h-24 mb-2"
+                                        value={editNoticeText}
+                                        onChange={(e) => setEditNoticeText(e.target.value)}
+                                        placeholder="輸入公告內容..."
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <button onClick={() => setIsEditingNotice(false)} className="text-xs text-[#a67c52] font-bold px-3 py-1">取消</button>
+                                        <button onClick={handleSaveNotice} className="bg-[#fbc02d] text-white text-xs font-bold px-3 py-1 rounded shadow-sm">儲存公告</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-[#5d4037] text-sm leading-relaxed whitespace-pre-line">{noticeText}</p>
+                            )}
+                        </div>
+                        {isAdmin && !isEditingNotice && (
+                            <button onClick={() => { setEditNoticeText(noticeText); setIsEditingNotice(true); }} className="absolute top-4 right-4 bg-white/50 p-2 rounded-full text-[#f57f17] hover:bg-white">
+                                <Edit size={16} />
+                            </button>
+                        )}
+                    </div>
+               </div>
+
                <div className="bg-[#fffbf7] border-2 border-[#faedcd] rounded-2xl p-6 mb-6 shadow-sm"><h3 className="font-bold text-[#8b5e3c] flex items-center mb-4 text-lg"><Wand2 className="w-5 h-5 mr-2" /> 訂購人資料</h3>
                    <div className="space-y-3"><input type="text" placeholder="寶貝名字 (如: 豆豆)" value={petName} onChange={(e) => setPetName(e.target.value)} className="w-full border border-[#e6ccb2] rounded-xl px-4 py-3 text-sm outline-none" />{hasApparel && <div className="relative"><Store className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50" /><input type="text" placeholder="超商店名 (如: 7-11 萬得門市)" value={storeName} onChange={(e) => setStoreName(e.target.value)} className="w-full border border-[#e6ccb2] rounded-xl pl-10 pr-4 py-3 text-sm outline-none" /></div>}{hasFood && <input type="text" placeholder="用途 (如: 3歲生日)" value={occasion} onChange={(e) => setOccasion(e.target.value)} className="w-full border border-[#e6ccb2] rounded-xl px-4 py-3 text-sm outline-none" />}</div>
                </div>
@@ -930,6 +1125,7 @@ const CartSummaryPage = ({ cart, onBack, removeFromCart, petName, setPetName, oc
            }
        </div>
        {cart.length > 0 && <div className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t flex flex-col gap-3 z-50 shadow-lg"><button onClick={onBack} className="w-full border-2 border-[#8b5e3c] text-[#8b5e3c] py-3 rounded-xl font-bold"><Plus size={18} className="inline mr-1"/>繼續選購</button><button onClick={handleCopy} className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-xl"><Copy size={20} className="inline mr-1"/>複製訂單前往 LINE</button></div>}
+       {showAddonModal && <AdminAddonModal addon={editingAddon} onSave={handleSaveAddon} onDelete={handleDeleteAddon} onClose={() => setShowAddonModal(false)} />}
        {toast && <Toast message={toast.message} type={toast.type} />}
     </div>
   );
@@ -957,7 +1153,7 @@ const App = () => {
         s.async = true;
         document.head.appendChild(s); 
     }
-     
+      
     // 監聽網路狀態 (樹梅派常用功能)
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -971,7 +1167,7 @@ const App = () => {
         setOccasion(localStorage.getItem('ho00p_occasion')||''); 
         setStoreName(localStorage.getItem('ho00p_storeName')||''); 
     } catch (e) {}
-     
+      
     return () => {
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
@@ -1029,7 +1225,7 @@ const App = () => {
       case 'about':
         return <AboutPage onBack={() => setPage('entry')} onSecretClick={handleSecretTrigger} isAdmin={isAdmin} onLogout={()=>setIsAdmin(false)} />;
       case 'summary':
-        return <CartSummaryPage cart={cart} onBack={() => setPage('entry')} removeFromCart={id=>setCart(p=>p.filter(i=>i.id!==id))} petName={petName} setPetName={setPetName} occasion={occasion} setOccasion={setOccasion} storeName={storeName} setStoreName={setStoreName} />;
+        return <CartSummaryPage cart={cart} onBack={() => setPage('entry')} removeFromCart={id=>setCart(p=>p.filter(i=>i.id!==id))} petName={petName} setPetName={setPetName} occasion={occasion} setOccasion={setOccasion} storeName={storeName} setStoreName={setStoreName} onAddAddon={i=>setCart(p=>[...p,i])} isAdmin={isAdmin} />;
       case 'admin_accounting':
         return <AdminAccountingPage onBack={() => setPage('entry')} />;
       default:
